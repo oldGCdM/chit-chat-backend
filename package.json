@@ -1,0 +1,14 @@
+{
+  "name": "chit-chat-backend",
+  "version": "0.0.0",
+  "description": "Backend API for an instant messaging app",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "GCdM",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
