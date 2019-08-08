@@ -1,10 +1,10 @@
 if (process.env.NODE_ENV !== 'production') require('dotenv').config()
 
-const pg = require('pg')
-const pgStore = require('pg-hstore')
+// const pg = require('pg')
+// const pgStore = require('pg-hstore')
 
 const Sequelize = require('sequelize')
-const connString = process.env['POSTGRES_CONN_STRING']
+
 const sequelize = new Sequelize(
   process.env['SEQUELIZE_DB_NAME'],
   process.env['SEQUELIZE_DB_USERNAME'],

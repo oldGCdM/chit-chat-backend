@@ -31,3 +31,7 @@ $WORK_FACTOR=14 **(do NOT hardcode)**
 dotenv
 ```
 Loads environment variables from `.env` files
+
+
+### To do
+- Validate User.username && User.password (length)
