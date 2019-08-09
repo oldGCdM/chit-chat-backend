@@ -19,6 +19,19 @@ User.init({
   username: {
     type: Sequelize.STRING,
     allowNull: false,
+    validate: {
+      notEmpty: true,
+      // -------------------------------------------
+      // custom unique validator, to control message
+      isUnique: async (value) => {
+        const exists = await User.findOne({
+          where: { username: value }
+        })
+        
+        if (exists) throw new Error('That username is already in use')
+      },
+      // -------------------------------------------
+    },
   },
   passwordDigest: {
     type: Sequelize.STRING,
@@ -26,6 +39,10 @@ User.init({
   },
 }, {
   sequelize,
+  indexes: [{
+    unique: true,
+    fields: ['username'],
+  }]
 })
 
 class Message extends Sequelize.Model {}
