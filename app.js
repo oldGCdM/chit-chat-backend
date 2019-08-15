@@ -10,23 +10,6 @@ const bcrypt = require('bcryptjs')
 
 const DB = require('./db.js')
 
-app.use(sessions({
-  cookieName: 'session',
-  secret: process.env['CHITCHAT_SESSION_SECRET'],
-  duration: 60 * 60 * 1000, // 1h
-}))
-
-// SMART USER MIDDLEWARE
-app.use((req, res, next) => {
-  if ( !(req.session && req.session.userId) ) return next()
-  return next()
-//   // Look for user in database and add them to the req object
-//   // NOTE remove password hash (= undefined)
-})
-
-// Parse JSON from requests and put result in req.body
-app.use( bodyParser.json() )
-
 // CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:3000')  
@@ -36,7 +19,46 @@ app.use((req, res, next) => {
   next()
 })
 
+// SESSION COOKIE MANAGER
+app.use(sessions({
+  cookieName: 'session',
+  secret: process.env['CHITCHAT_SESSION_SECRET'],
+  duration: 60 * 60 * 1000, // 1h
+}))
+
+// SMART USER MIDDLEWARE
+app.use((req, res, next) => {
+  if ( !(req.session && req.session.userId) ) return next()
+
+  DB.User.findOne({ where: { id: req.session.userId } })
+  .then((user) => {
+    req.user = user.get({ plain: true })
+    req.user.passwordDigest = undefined
+    next()
+  })
+  .catch((err) => {
+    req.session.userId = undefined
+
+    console.log("111111111111111111111111111111111111111111\n------------------------------------------\n111111111111111111111111111111111111111111")
+    console.log(err)
+    console.log("111111111111111111111111111111111111111111\n------------------------------------------\n111111111111111111111111111111111111111111")
+
+    next(err)
+  })
+})
+
+// JSON PARSER FOR REQ.BODY
+app.use( bodyParser.json() )
+
+// AUTHORIZATION CHECKER
+const requireLogin = (req, res, next) => {
+  if (req.user) return next()
+
+  res.json({ error: "You are not authorised to access this data" })
+}
+
 app.post('/register', (req, res) => {
+
   const newUser = {
     username: req.body.username,
     passwordDigest: bcrypt.hashSync(req.body.password, workFactor),
@@ -55,19 +77,8 @@ app.post('/register', (req, res) => {
 })
 
 app.post('/login', (req, res) => {
-  // // FAKE PLACEHOLDER vv change to postgres functions
-  // DB.findUser({ email: req.body.email }, (err, user) => {
-  //   if (!user || password_auth() ) {
-  //     return res.render('login', { error: "Incorrect email / password"})
-  //   }
-  // })
-  // // set the session cookie info, which will be encrypted
-  // req.session.userId = user.id
-  // res.redirect('/mainPage')
 
-  DB.User.findOne({
-    where: { username: req.body.username }
-  })
+  DB.User.findOne({ where: { username: req.body.username } })
   .then((user) => {
     const userInfo = user.get({ plain: true })
 
@@ -75,16 +86,16 @@ app.post('/login', (req, res) => {
       req.session.userId = userInfo.id
       res.json({ username: userInfo.username })
     } else {
-      res.json({ error: "Username and password combination do not match" })
+      res.json({ error: "Invalid username / password" })
     }
-
-    // (bcrypt.compareSync(req.body.password, userInfo.passwordDigest))
-    // ? res.json({ username: userInfo.username })
-    // : res.json({ error: "Username and password combination do not match" })
   })
   .catch((err) => {
-    res.json({ error: "Username and password combination do not match" })
+    res.json({ error: "Invalid username / password" })
   })
+})
+
+app.get('/validate', requireLogin, (req, res) => {
+  res.json({ username: req.user.username })
 })
 
 // app.get('/dashboard', (req, res) => {
