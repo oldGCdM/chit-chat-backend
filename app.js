@@ -38,11 +38,6 @@ app.use((req, res, next) => {
   })
   .catch((err) => {
     req.session.userId = undefined
-
-    console.log("111111111111111111111111111111111111111111\n------------------------------------------\n111111111111111111111111111111111111111111")
-    console.log(err)
-    console.log("111111111111111111111111111111111111111111\n------------------------------------------\n111111111111111111111111111111111111111111")
-
     next(err)
   })
 })
@@ -98,9 +93,10 @@ app.get('/validate', requireLogin, (req, res) => {
   res.json({ username: req.user.username })
 })
 
-// app.get('/dashboard', (req, res) => {
-//   req.user
-// })
+app.get('/logout', requireLogin, (req, res) => {
+  req.session.destroy()
+  res.json({ logout: true })
+})
 
 app.listen(process.env['CHITCHAT_BACKEND_PORT'], () => 
   console.log(`Listening on port ${process.env['CHITCHAT_BACKEND_PORT']}`)

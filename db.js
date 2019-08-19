@@ -1,8 +1,5 @@
 if (process.env.NODE_ENV !== 'production') require('dotenv').config()
 
-// const pg = require('pg')
-// const pgStore = require('pg-hstore')
-
 const Sequelize = require('sequelize')
 
 const sequelize = new Sequelize(
@@ -27,7 +24,7 @@ User.init({
         const exists = await User.findOne({
           where: { username: value }
         })
-        
+
         if (exists) throw new Error('That username is already in use')
       },
       // -------------------------------------------
@@ -68,9 +65,6 @@ Conversation.init({
 }, {
   sequelize,
 })
-
-// class ConversationUser extends Sequelize.Model {}
-// ConversationUser.init//({ ... })
 
 User.hasMany(Message, { foreignKey: 'senderId' })
 Message.belongsTo(User, { foreignKey: 'senderId' })
