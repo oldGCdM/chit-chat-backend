@@ -1,10 +1,10 @@
 if (process.env.NODE_ENV !== 'production') require('dotenv').config()
-const ENV = process.env
-const workFactor = parseInt(ENV.BCRYPT_WORK_FACTOR)
 
-const express = require('express')
-const app = express()
+const app = require('express')()
+const server = require('http').Server(app)
+const io = require('socket.io')(server)
 const bodyParser = require('body-parser')
+const cookieParser = require('cookie')
 const sessions = require('client-sessions')
 const bcrypt = require('bcryptjs')
 
@@ -56,7 +56,7 @@ app.post('/register', (req, res) => {
 
   const newUser = {
     username: req.body.username,
-    passwordDigest: bcrypt.hashSync(req.body.password, workFactor),
+    passwordDigest: bcrypt.hashSync(req.body.password, parseInt(process.env.BCRYPT_WORK_FACTOR)),
   }
 
   DB.User.create(newUser)
@@ -98,6 +98,34 @@ app.get('/logout', requireLogin, (req, res) => {
   res.json({ logout: true })
 })
 
-app.listen(process.env['CHITCHAT_BACKEND_PORT'], () => 
+io.on('connection', (socket) => {
+  const userId = getUserIdFromCookies(socket.handshake.headers.cookie)
+
+  // set socket.user and emit initial data (i.e. all conversations as they currently are)
+  DB.User.findOne({ where: { id: userId } })
+  .then(async (user) => {
+    socket.user = user.get({ plain: true })
+    socket.user.passwordDigest = undefined
+    const conversations = await user.getConversations()
+
+    socket.emit('initial-conversations', conversations)
+  })
+})
+
+server.listen(process.env['CHITCHAT_BACKEND_PORT'], () => 
   console.log(`Listening on port ${process.env['CHITCHAT_BACKEND_PORT']}`)
 )
+
+const getUserIdFromCookies = (cookies) => {
+  const cookiesObj = cookieParser.parse(cookies)
+
+  if (cookiesObj.session) {
+    const decodedCookie = sessions.util.decode({
+      cookieName: 'session',
+      secret: process.env['CHITCHAT_SESSION_SECRET'],
+      duration: 60 * 60 * 1000,
+    }, cookiesObj.session)
+
+    return decodedCookie.content.userId
+  }
+}
