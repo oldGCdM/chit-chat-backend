@@ -8,7 +8,8 @@ const cookieParser = require('cookie')
 const sessions = require('client-sessions')
 const bcrypt = require('bcryptjs')
 
-const DB = require('./db.js')
+const DB = require('./db')
+const serialize = require('./serializer')
 
 // CORS
 app.use((req, res, next) => {
@@ -100,15 +101,17 @@ app.get('/logout', requireLogin, (req, res) => {
 
 io.on('connection', (socket) => {
   const userId = getUserIdFromCookies(socket.handshake.headers.cookie)
-
+  console.log("\n( ---- | New connection | ---- )\n")
   // set socket.user and emit initial data (i.e. all conversations as they currently are)
   DB.User.findOne({ where: { id: userId } })
   .then(async (user) => {
     socket.user = user.get({ plain: true })
     socket.user.passwordDigest = undefined
+    
     const conversations = await user.getConversations()
-
-    socket.emit('initial-conversations', conversations)
+    const conversationPromises = conversations.map(serialize.conversation)
+    const serialisedConversations = await Promise.all(conversationPromises)
+    socket.emit('initial-conversations', serialisedConversations)
   })
 })
 
