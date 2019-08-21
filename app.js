@@ -9,7 +9,7 @@ const sessions = require('client-sessions')
 const bcrypt = require('bcryptjs')
 
 const DB = require('./db')
-const serialize = require('./serializer')
+const serialise = require('./serializer')
 
 // CORS
 app.use((req, res, next) => {
@@ -99,6 +99,10 @@ app.get('/logout', requireLogin, (req, res) => {
   res.json({ logout: true })
 })
 
+const onlineUsers = {
+
+}
+
 io.on('connection', (socket) => {
   const userId = getUserIdFromCookies(socket.handshake.headers.cookie)
   console.log("\n( ---- | New connection | ---- )\n")
@@ -107,12 +111,27 @@ io.on('connection', (socket) => {
   .then(async (user) => {
     socket.user = user.get({ plain: true })
     socket.user.passwordDigest = undefined
-    
+
     const conversations = await user.getConversations()
-    const conversationPromises = conversations.map(serialize.conversation)
+    const conversationPromises = conversations.map(serialise.conversation)
     const serialisedConversations = await Promise.all(conversationPromises)
+    serialisedConversations.forEach(convo => socket.join('conversation' + convo.id))
     socket.emit('initial-conversations', serialisedConversations)
   })
+
+  socket.on('new-message', ({ content, conversationId }) => {
+    DB.Message.create({
+      content,
+      senderId: socket.user.id,
+    })
+    .then( async newMessage => {
+      const conversation = await DB.Conversation.findByPk(conversationId)
+      await conversation.addMessage(newMessage)
+      io.to('conversation' + conversation.id).emit('new-message', await serialise.message(newMessage), conversationId)
+    })
+  })
+
+  socket.on('disconnect', () => console.log("\n( XXXX | Connection closed | XXXX )\n"))
 })
 
 server.listen(process.env['CHITCHAT_BACKEND_PORT'], () => 

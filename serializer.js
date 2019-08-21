@@ -4,10 +4,21 @@ const conversation = async (conversation) => {
   const messages = await conversation.getMessages()
   const serialisedMessages = await Promise.all(messages.map(message))
 
+  const users = await conversation.getUsers()
+  const serialisedUsers = await Promise.all(users.map(user))
+
   return {
     id: conversation.id,
     name: conversation.name,
+    users: serialisedUsers,
     messages: serialisedMessages,
+  }
+}
+
+const user = async (user) => {
+  return {
+    id: user.id,
+    username: user.username, 
   }
 }
 
