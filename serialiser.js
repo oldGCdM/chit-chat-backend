@@ -34,5 +34,6 @@ const message = async (message) => {
 
 module.exports = {
   conversation,
+  user,
   message,
 }

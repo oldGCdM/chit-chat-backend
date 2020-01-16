@@ -9,7 +9,7 @@ const sessions = require('client-sessions')
 const bcrypt = require('bcryptjs')
 
 const DB = require('./db')
-const serialise = require('./serializer')
+const serialise = require('./serialiser')
 
 // CORS
 app.use((req, res, next) => {
@@ -50,6 +50,7 @@ app.use( bodyParser.json() )
 const requireLogin = (req, res, next) => {
   if (req.user) return next()
 
+  req.session.destroy()
   res.json({ error: "You are not authorised to access this data" })
 }
 
@@ -99,27 +100,39 @@ app.get('/logout', requireLogin, (req, res) => {
   res.json({ logout: true })
 })
 
-const onlineUsers = {
+app.post('/users', requireLogin, async (req, res) => {
+  const users = await DB.User.findAll()
+  const conversation = await DB.Conversation.findByPk(req.body.conversationId)
+  const conversationUsers = await conversation.getUsers()
+  const conversationUsersIds = conversationUsers.map( u => u.id )
+  const usersNotInConversation = users.filter( u => !conversationUsersIds.includes(u.id) )
 
-}
+  const usersInfo = await Promise.all(usersNotInConversation.map(serialise.user))
+
+  res.json(usersInfo)
+})
 
 io.on('connection', (socket) => {
   const userId = getUserIdFromCookies(socket.handshake.headers.cookie)
   console.log("\n( ---- | New connection | ---- )\n")
-  // set socket.user and emit initial data (i.e. all conversations as they currently are)
-  DB.User.findOne({ where: { id: userId } })
+
+  // set socket.user and emit initial data (i.e. all conversations as they currently are, and all users)
+  DB.User.findByPk(userId)
   .then(async (user) => {
-    socket.user = user.get({ plain: true })
+    socket.user = user
     socket.user.passwordDigest = undefined
 
     const conversations = await user.getConversations()
+    conversations.sort((a, b) => b.createdAt - a.createdAt)
     const conversationPromises = conversations.map(serialise.conversation)
     const serialisedConversations = await Promise.all(conversationPromises)
     serialisedConversations.forEach(convo => socket.join('conversation' + convo.id))
+    // const users = await DB.User.findAll()
+    // const usersInfo = await Promise.all(users.map(serialise.user))
     socket.emit('initial-conversations', serialisedConversations)
   })
 
-  socket.on('new-message', ({ content, conversationId }) => {
+  socket.on('create-message', ({ content, conversationId }) => {
     DB.Message.create({
       content,
       senderId: socket.user.id,
@@ -129,6 +142,25 @@ io.on('connection', (socket) => {
       await conversation.addMessage(newMessage)
       io.to('conversation' + conversation.id).emit('new-message', await serialise.message(newMessage), conversationId)
     })
+  })
+
+  socket.on('create-conversation', () => {
+    DB.Conversation.create({ name: null })
+    .then( async newConversation => {
+      await newConversation.addUser(socket.user)
+      socket.join('conversation' + newConversation.id)
+      socket.emit('new-conversation', await serialise.conversation(newConversation))
+    })
+  })
+
+  socket.on('add-user-to-conversation', async (username, conversationId) => {
+    const user = await DB.User.findOne({ where: { username: username } })
+    const conversation = await DB.Conversation.findByPk(conversationId)
+
+    conversation.addUser(user)
+
+    const userInfo = await serialise.user(user)
+    socket.emit('new-user-in-conversation', userInfo, conversationId)
   })
 
   socket.on('disconnect', () => console.log("\n( XXXX | Connection closed | XXXX )\n"))
